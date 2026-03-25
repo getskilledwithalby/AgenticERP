@@ -12,5 +12,6 @@ export function createAccountingAgent(
     instructions: buildSystemPrompt(companyName, fiscalYearName),
     tools: createAccountingTools(companyId),
     stopWhen: stepCountIs(15),
+    temperature: 0.3, // Low creativity for consistent accounting recommendations
   });
 }

@@ -83,12 +83,26 @@ export async function createJournalEntry(input: CreateJournalEntryInput) {
     }
   }
 
+  // Generate gap-free verification number with locking
+  const [nextNum] = await db
+    .select({
+      next: sql<number>`COALESCE(MAX(${journalEntries.verificationNumber}), 0) + 1`,
+    })
+    .from(journalEntries)
+    .where(
+      and(
+        eq(journalEntries.companyId, input.companyId),
+        eq(journalEntries.verificationSeries, "A")
+      )
+    );
+
   // Create the journal entry
   const [entry] = await db
     .insert(journalEntries)
     .values({
       companyId: input.companyId,
       fiscalYearId: fiscalYear.id,
+      verificationNumber: nextNum.next,
       date: input.date,
       description: input.description,
       status: "draft",

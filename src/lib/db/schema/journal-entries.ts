@@ -4,12 +4,14 @@ import {
   text,
   varchar,
   date,
-  serial,
+  integer,
   decimal,
   smallint,
   timestamp,
+  jsonb,
   index,
   check,
+  unique,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companies } from "./companies";
@@ -27,7 +29,7 @@ export const journalEntries = pgTable(
     fiscalYearId: uuid("fiscal_year_id")
       .references(() => fiscalYears.id)
       .notNull(),
-    verificationNumber: serial("verification_number"),
+    verificationNumber: integer("verification_number"),
     verificationSeries: varchar("verification_series", { length: 1 })
       .default("A")
       .notNull(),
@@ -39,6 +41,12 @@ export const journalEntries = pgTable(
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at"),
     postedAt: timestamp("posted_at"),
+    agentReasoning: jsonb("agent_reasoning").$type<{
+      confidence?: string;
+      reasoning?: string;
+      references?: Array<{ title: string; url: string }>;
+      warnings?: string[];
+    }>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -48,6 +56,11 @@ export const journalEntries = pgTable(
       table.companyId,
       table.fiscalYearId,
       table.date
+    ),
+    unique("uq_je_company_series_number").on(
+      table.companyId,
+      table.verificationSeries,
+      table.verificationNumber
     ),
   ]
 );

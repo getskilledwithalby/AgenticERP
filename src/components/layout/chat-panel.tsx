@@ -437,13 +437,46 @@ function ToolResultContent({
     );
   }
 
-  // Draft journal entry created — show inline approval
-  if (toolName === "createDraftJournalEntry" && data?.success) {
+  // Validation blocked the entry
+  if (toolName === "createDraftJournalEntry" && data?.blocked) {
+    const errors = (data.errors as string[]) ?? [];
     return (
-      <InlineApproval
-        entryId={String(data.entryId)}
-        link={String(data.link)}
-      />
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 text-xs text-destructive font-medium">
+          <XCircle className="h-3.5 w-3.5" />
+          Blockerad av valideringsregler
+        </div>
+        {errors.map((e, i) => (
+          <div key={i} className="text-[11px] text-destructive/80 ml-5">
+            {e}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Draft journal entry created — show inline approval + warnings
+  if (toolName === "createDraftJournalEntry" && data?.success) {
+    const warnings = (data.warnings as string[]) ?? [];
+    return (
+      <div className="space-y-2">
+        {warnings.length > 0 && (
+          <div className="rounded-md bg-yellow-500/10 p-2 space-y-1">
+            <div className="text-[11px] font-medium text-yellow-500">
+              {warnings.length} varning(ar)
+            </div>
+            {warnings.map((w, i) => (
+              <div key={i} className="text-[10px] text-yellow-400/80">
+                {w}
+              </div>
+            ))}
+          </div>
+        )}
+        <InlineApproval
+          entryId={String(data.entryId)}
+          link={String(data.link)}
+        />
+      </div>
     );
   }
 

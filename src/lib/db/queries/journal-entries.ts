@@ -41,11 +41,19 @@ export async function getJournalEntries(filters: JournalEntryFilters) {
   return entries;
 }
 
-export async function getJournalEntryWithRows(entryId: string) {
+export async function getJournalEntryWithRows(
+  entryId: string,
+  companyId?: string
+) {
+  const conditions = [eq(journalEntries.id, entryId)];
+  if (companyId) {
+    conditions.push(eq(journalEntries.companyId, companyId));
+  }
+
   const [entry] = await db
     .select()
     .from(journalEntries)
-    .where(eq(journalEntries.id, entryId))
+    .where(and(...conditions))
     .limit(1);
 
   if (!entry) return null;

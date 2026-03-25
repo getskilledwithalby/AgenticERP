@@ -4,6 +4,18 @@ import {
   searchAccounts as dbSearchAccounts,
   getAccountBalance as dbGetAccountBalance,
 } from "@/lib/db/queries/accounts";
+import { validateAccountingDecision } from "@/lib/accounting/rules";
+
+// Reusable schema fragments
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Datum maste vara YYYY-MM-DD format")
+  .describe("Datum (YYYY-MM-DD)");
+
+const accountNumberSchema = z
+  .string()
+  .regex(/^\d{4}$/, "Kontonummer maste vara exakt 4 siffror")
+  .describe("BAS-kontonummer (4 siffror)");
 import {
   getJournalEntries,
   getJournalEntryWithRows,
@@ -77,6 +89,8 @@ export function createAccountingTools(companyId: string) {
       inputSchema: z.object({
         query: z
           .string()
+          .min(1)
+          .max(100)
           .describe("Sokterm: kontonummer, namn eller del av namn"),
       }),
       execute: async ({ query }) => {
@@ -95,14 +109,9 @@ export function createAccountingTools(companyId: string) {
       description:
         "Hamta saldo for ett specifikt konto, valfritt for en viss period. Returnerar debet, kredit och saldo.",
       inputSchema: z.object({
-        accountNumber: z
-          .string()
-          .describe("BAS-kontonummer, t.ex. 1930"),
-        fromDate: z
-          .string()
-          .optional()
-          .describe("Fran datum (YYYY-MM-DD)"),
-        toDate: z.string().optional().describe("Till datum (YYYY-MM-DD)"),
+        accountNumber: accountNumberSchema,
+        fromDate: dateSchema.optional(),
+        toDate: dateSchema.optional(),
       }),
       execute: async ({ accountNumber, fromDate, toDate }) => {
         const result = await dbGetAccountBalance(
@@ -126,8 +135,8 @@ export function createAccountingTools(companyId: string) {
       description:
         "Hamta saldobalans (trial balance) for alla konton i en period. Visar summa debet och kredit per konto.",
       inputSchema: z.object({
-        fromDate: z.string().describe("Fran datum (YYYY-MM-DD)"),
-        toDate: z.string().describe("Till datum (YYYY-MM-DD)"),
+        fromDate: dateSchema,
+        toDate: dateSchema,
       }),
       execute: async ({ fromDate, toDate }) => {
         const result = await db
@@ -224,27 +233,52 @@ export function createAccountingTools(companyId: string) {
 
     createDraftJournalEntry: tool({
       description:
-        "Skapa en ny verifikation som utkast. Rader maste balansera (summa debet = summa kredit). Anvandaren maste godkanna innan bokforing.",
+        "Skapa en ny verifikation som utkast. Rader maste balansera (summa debet = summa kredit). Anvandaren maste godkanna innan bokforing. Verifikationen valideras mot redovisningsregler innan den skapas.",
       inputSchema: z.object({
-        date: z.string().describe("Verifikationsdatum (YYYY-MM-DD)"),
-        description: z.string().describe("Beskrivning av transaktionen"),
+        date: dateSchema.describe("Verifikationsdatum (YYYY-MM-DD)"),
+        description: z.string().min(3).max(500).describe("Beskrivning av transaktionen"),
         rows: z
           .array(
             z.object({
-              accountNumber: z
-                .string()
-                .describe("BAS-kontonummer (4 siffror)"),
-              debit: z.number().describe("Debetbelopp (0 om kredit)"),
-              credit: z.number().describe("Kreditbelopp (0 om debet)"),
+              accountNumber: accountNumberSchema,
+              debit: z.number().min(0).max(999_999_999.99).describe("Debetbelopp (0 om kredit)"),
+              credit: z.number().min(0).max(999_999_999.99).describe("Kreditbelopp (0 om debet)"),
               description: z
                 .string()
+                .max(200)
                 .optional()
                 .describe("Valfri radtext"),
             })
           )
+          .min(2)
+          .max(50)
           .describe("Konteringsrader (minst 2, maste balansera)"),
       }),
       execute: async ({ date, description, rows }) => {
+        // GUARDRAIL: Run accounting rules validation BEFORE creating the entry
+        const validation = await validateAccountingDecision(
+          companyId,
+          date,
+          description,
+          rows.map((r) => ({
+            accountNumber: r.accountNumber,
+            debit: r.debit,
+            credit: r.credit,
+            description: r.description,
+          }))
+        );
+
+        // Hard block on errors
+        if (validation.errors.length > 0) {
+          return {
+            blocked: true,
+            errors: validation.errors,
+            warnings: validation.warnings,
+            message:
+              "Verifikationen kunde inte skapas pa grund av valideringsfel. Ratta felen och forsok igen.",
+          };
+        }
+
         const result = await createJournalEntry({
           companyId,
           date,
@@ -266,7 +300,11 @@ export function createAccountingTools(companyId: string) {
         return {
           success: true,
           entryId: result.entryId,
-          message: `Verifikation skapad som utkast. Anvandaren maste godkanna den i dashboarden.`,
+          warnings: validation.warnings,
+          message:
+            validation.warnings.length > 0
+              ? `Verifikation skapad som utkast med ${validation.warnings.length} varning(ar). Granska varningarna innan godkannande.`
+              : `Verifikation skapad som utkast. Anvandaren maste godkanna den i dashboarden.`,
           link: `/dashboard/journal-entries/${result.entryId}`,
         };
       },
@@ -307,8 +345,8 @@ export function createAccountingTools(companyId: string) {
       description:
         "Generera resultatrakning for en period. Visar intakter (3xxx), kostnader (4-7xxx) och resultat.",
       inputSchema: z.object({
-        fromDate: z.string().describe("Fran datum (YYYY-MM-DD)"),
-        toDate: z.string().describe("Till datum (YYYY-MM-DD)"),
+        fromDate: dateSchema,
+        toDate: dateSchema,
       }),
       execute: async ({ fromDate, toDate }) => {
         const result = await db
