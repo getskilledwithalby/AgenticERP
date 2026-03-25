@@ -1,0 +1,55 @@
+#FLAGGA 0
+#PROGRAM "TestSystem" "1.0"
+#FORMAT PC8
+#GEN 20260301
+#SIETYP 4
+#PROSA "Testfil for AgenticERP"
+#FNAMN "Testforetag AB"
+#ORGNR 5569001234
+#RAR 0 20260101 20261231
+#KONTO 1510 "Kundfordringar"
+#KONTO 1930 "Foretagskonto"
+#KONTO 2440 "Leverantorsskulder"
+#KONTO 2610 "Utgaende moms 25%"
+#KONTO 2641 "Ingaende moms 25%"
+#KONTO 3001 "Forsaljning tjanster 25%"
+#KONTO 5010 "Lokalhyra"
+#KONTO 6110 "Kontorsmaterial"
+#KONTO 6212 "Mobiltelefon"
+#KONTO 6530 "Redovisningstjanster"
+#IB 0 1930 250000.00
+#VER A 1 20260115 "Faktura #1001 - Konsulttjanster"
+{
+#TRANS 1510 {} 62500.00
+#TRANS 3001 {} -50000.00
+#TRANS 2610 {} -12500.00
+}
+#VER A 2 20260201 "Kontorshyra februari"
+{
+#TRANS 5010 {} 10000.00
+#TRANS 2641 {} 2500.00
+#TRANS 1930 {} -12500.00
+}
+#VER A 3 20260215 "Mobilabonnemang Telia"
+{
+#TRANS 6212 {} 400.00
+#TRANS 2641 {} 100.00
+#TRANS 1930 {} -500.00
+}
+#VER A 4 20260220 "Kontorsmaterial Staples"
+{
+#TRANS 6110 {} 800.00
+#TRANS 2641 {} 200.00
+#TRANS 1930 {} -1000.00
+}
+#VER A 5 20260228 "Betalning fran kund #1001"
+{
+#TRANS 1930 {} 62500.00
+#TRANS 1510 {} -62500.00
+}
+#VER A 6 20260301 "Redovisningstjanster BokforingsExperten"
+{
+#TRANS 6530 {} 4000.00
+#TRANS 2641 {} 1000.00
+#TRANS 2440 {} -5000.00
+}
